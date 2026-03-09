@@ -5,48 +5,74 @@ import plotly.io as pio
 import tempfile
 import os
 
-# ===============================
-# CONFIGURAÇÕES GLOBAIS
-# ===============================
 pio.templates.default = "plotly_white"
 
-# ===============================
-# FUNÇÃO DEFINITIVA DE CORES
-# ===============================
 def gerar_cores(paleta, tamanho):
     return [paleta[i % len(paleta)] for i in range(tamanho)]
 
-# ===============================
-# Configuração da página
-# ===============================
 st.set_page_config(
     page_title="Dashboard de Demandas do Suporte",
     layout="wide"
 )
 
-st.title("📊 Dashboard Mensal de Demandas do Suporte")
+st.title("📊 Dashboard de Demandas do Suporte")
 
-# ===============================
-# Upload do arquivo
-# ===============================
 arquivo = st.file_uploader(
     "📂 Selecione o arquivo de chamados (Excel)",
     type=["xlsx", "xls"]
 )
 
 if arquivo:
-    # ===============================
-    # Base completa
-    # ===============================
+
     df_total = pd.read_excel(arquivo)
     df_total.columns = df_total.columns.str.strip()
+
+    # ===============================
+    # Conversão da data
+    # ===============================
+    df_total["Aberto em"] = pd.to_datetime(
+        df_total["Aberto em"],
+        errors="coerce"
+    )
+
     total_chamados_base = len(df_total)
+
+    # ===============================
+    # FILTRO POR DATA
+    # ===============================
+    st.sidebar.header("📅 Filtro por Período")
+
+    data_min = df_total["Aberto em"].min()
+    data_max = df_total["Aberto em"].max()
+
+    data_inicio = st.sidebar.date_input(
+        "Data inicial",
+        value=data_min,
+        min_value=data_min,
+        max_value=data_max
+    )
+
+    data_fim = st.sidebar.date_input(
+        "Data final",
+        value=data_max,
+        min_value=data_min,
+        max_value=data_max
+    )
+
+    df_total = df_total[
+        (df_total["Aberto em"] >= pd.to_datetime(data_inicio)) &
+        (df_total["Aberto em"] <= pd.to_datetime(data_fim))
+    ]
 
     # ===============================
     # Base analisada
     # ===============================
     df = df_total.copy()
-    df = df[~df["Status"].isin(["Fora do horário", "DEV - Em desenvolvimento"])]
+
+    df = df[~df["Status"].isin([
+        "Fora do horário",
+        "DEV - Em desenvolvimento"
+    ])]
 
     responsaveis_permitidos = [
         "Luiz Cafarate",
@@ -55,12 +81,13 @@ if arquivo:
         "Luciano Boteleiro",
         "Thiago O. P."
     ]
+
     df = df[df["Responsável"].isin(responsaveis_permitidos)]
 
     total_chamados_analisados = len(df)
 
     # ===============================
-    # Top 3 Serviços
+    # Top serviços
     # ===============================
     top_servicos = (
         df["Serviço (Completo)"]
@@ -68,9 +95,14 @@ if arquivo:
         .head(3)
         .reset_index()
     )
-    top_servicos.columns = ["Serviço (Completo)", "Quantidade de Chamados"]
+
+    top_servicos.columns = [
+        "Serviço (Completo)",
+        "Quantidade de Chamados"
+    ]
 
     total_top3 = top_servicos["Quantidade de Chamados"].sum()
+
     percentual_top3 = (
         (total_top3 / total_chamados_analisados) * 100
         if total_chamados_analisados > 0 else 0
@@ -82,12 +114,24 @@ if arquivo:
     st.markdown("### 📌 Visão Geral")
 
     col1, col2, col3 = st.columns(3)
-    col1.metric("📞 Total de Chamados (Base)", total_chamados_base)
-    col2.metric("📂 Chamados Analisados", total_chamados_analisados)
-    col3.metric("🏆 % Top 3 Serviços", f"{percentual_top3:.2f}%")
+
+    col1.metric(
+        "📞 Total de Chamados (Base)",
+        total_chamados_base
+    )
+
+    col2.metric(
+        "📂 Chamados Analisados",
+        total_chamados_analisados
+    )
+
+    col3.metric(
+        "🏆 % Top 3 Serviços",
+        f"{percentual_top3:.2f}%"
+    )
 
     # ===============================
-    # Gráfico Top 3 Serviços
+    # Gráfico Top Serviços
     # ===============================
     st.subheader("🏆 Top 3 Serviços com Maior Demanda")
 
@@ -106,21 +150,17 @@ if arquivo:
         )
     )
 
-    fig_top.update_layout(
-        xaxis_title="Serviço",
-        yaxis_title="Quantidade de Chamados"
-    )
-
     st.plotly_chart(fig_top, use_container_width=True)
 
     # ===============================
-    # Categorias por Serviço
+    # Categorias por serviço
     # ===============================
     st.subheader("📌 Top 5 Categorias por Serviço")
 
     figuras_categoria = []
 
     for servico in top_servicos["Serviço (Completo)"]:
+
         df_categoria = (
             df[df["Serviço (Completo)"] == servico]
             .groupby("Categoria")
@@ -147,6 +187,7 @@ if arquivo:
         )
 
         figuras_categoria.append(fig)
+
         st.plotly_chart(fig, use_container_width=True)
 
     # ===============================
@@ -163,10 +204,12 @@ if arquivo:
         "Outros erros ou problemas",
         "Problemas - APi",
         "Problemas com atualização",
-        "Erros e Problemas com software"
+        "Erros e Problemas com software",
+        "Base bloqueada"
     ]
 
     df_erros = df[df["Categoria"].isin(categorias_erros)]
+
     total_erros = len(df_erros)
 
     percentual_erros = (
@@ -175,10 +218,19 @@ if arquivo:
     )
 
     col_e1, col_e2 = st.columns(2)
-    col_e1.metric("🟥 Total de Chamados de Erro", total_erros)
-    col_e2.metric("📊 % Erros sobre Chamados Analisados", f"{percentual_erros:.2f}%")
+
+    col_e1.metric(
+        "🟥 Total de Chamados de Erro",
+        total_erros
+    )
+
+    col_e2.metric(
+        "📊 % Erros sobre Chamados",
+        f"{percentual_erros:.2f}%"
+    )
 
     if not df_erros.empty:
+
         erros_qtd = (
             df_erros.groupby("Categoria")
             .size()
@@ -201,11 +253,6 @@ if arquivo:
             )
         )
 
-        fig_erros.update_layout(
-            xaxis_title="Categoria de Erro",
-            yaxis_title="Quantidade de Chamados"
-        )
-
         st.plotly_chart(fig_erros, use_container_width=True)
 
     # ===============================
@@ -215,59 +262,26 @@ if arquivo:
     st.subheader("📥 Exportar Dashboard")
 
     if st.button("Gerar HTML do Dashboard"):
+
         with tempfile.NamedTemporaryFile(delete=False, suffix=".html") as tmp:
             html_path = tmp.name
 
         with open(html_path, "w", encoding="utf-8") as f:
-            f.write(f"""
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-<meta charset="utf-8">
-<title>Dashboard de Demandas do Suporte</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-<style>
-body {{ background:#f8f9fa; }}
-.card {{
-    border-radius:12px;
-    box-shadow:0 4px 10px rgba(0,0,0,.08);
-}}
-.plotly-graph-div {{ margin-bottom:40px; }}
-</style>
-</head>
-<body>
-<div class="container my-5">
 
-<h1 class="text-center text-primary mb-4">📊 Dashboard Mensal de Demandas</h1>
+            f.write("<html><head>")
+            f.write("<script src='https://cdn.plot.ly/plotly-latest.min.js'></script>")
+            f.write("</head><body>")
+            f.write("<h1>Dashboard de Demandas</h1>")
 
-<div class="row mb-4 text-center">
-<div class="col-md-4"><div class="card p-3">Total de Chamados<br><strong>{total_chamados_base}</strong></div></div>
-<div class="col-md-4"><div class="card p-3">Chamados Analisados<br><strong>{total_chamados_analisados}</strong></div></div>
-<div class="col-md-4"><div class="card p-3">% Top 3 Serviços<br><strong>{percentual_top3:.2f}%</strong></div></div>
-</div>
+            f.write(fig_top.to_html(full_html=False))
 
-<h4 class="mt-4">🏆 Top 3 Serviços</h4>
-""")
-
-            f.write(fig_top.to_html(full_html=False, include_plotlyjs=False))
-
-            f.write("<h4 class='mt-5'>📌 Categorias por Serviço</h4>")
             for fig in figuras_categoria:
-                f.write(fig.to_html(full_html=False, include_plotlyjs=False))
-
-            f.write(f"""
-<h4 class="mt-5 text-danger">🚨 Chamados de Erro</h4>
-<div class="row text-center mb-3">
-<div class="col-md-6"><div class="card p-3">Total de Erros<br><strong>{total_erros}</strong></div></div>
-<div class="col-md-6"><div class="card p-3">% Erros sobre Analisados<br><strong>{percentual_erros:.2f}%</strong></div></div>
-</div>
-""")
+                f.write(fig.to_html(full_html=False))
 
             if not df_erros.empty:
-                f.write(fig_erros.to_html(full_html=False, include_plotlyjs=False))
+                f.write(fig_erros.to_html(full_html=False))
 
-            f.write("</div></body></html>")
+            f.write("</body></html>")
 
         with open(html_path, "rb") as file:
             st.download_button(
