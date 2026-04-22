@@ -191,6 +191,45 @@ if arquivo:
         st.plotly_chart(fig, use_container_width=True)
 
     # ===============================
+    # TOP CLIENTES
+    # ===============================
+    st.divider()
+    st.subheader("👥 Top 10 Clientes com Mais Chamados")
+
+    coluna_cliente = "Cliente (Organização)" if "Cliente (Organização)" in df.columns else "Nome do Cliente" if "Nome do Cliente" in df.columns else None
+
+    if coluna_cliente and coluna_cliente in df.columns:
+        top_clientes = (
+            df.groupby(coluna_cliente)
+            .size()
+            .reset_index(name="Quantidade de Chamados")
+            .sort_values("Quantidade de Chamados", ascending=False)
+            .head(10)
+        )
+
+        fig_clientes = px.bar(
+            top_clientes,
+            y=coluna_cliente,
+            x="Quantidade de Chamados",
+            text="Quantidade de Chamados" 
+        )
+
+        fig_clientes.update_layout(yaxis={'categoryorder':'total ascending'})
+
+        fig_clientes.update_traces(
+            textposition="outside",
+            marker_color=gerar_cores(
+                px.colors.qualitative.Prism, 
+                len(top_clientes)
+            )
+        )
+
+        st.plotly_chart(fig_clientes, use_container_width=True)
+        
+    else:
+        st.warning("⚠️ Coluna referente a 'Cliente' não encontrada na base de dados. Verifica o nome da coluna no teu Excel.")
+
+    # ===============================
     # ERROS
     # ===============================
     st.divider()
@@ -278,6 +317,10 @@ if arquivo:
             for fig in figuras_categoria:
                 f.write(fig.to_html(full_html=False))
 
+            # Adiciona também o gráfico de clientes à exportação, caso tenha sido gerado
+            if 'fig_clientes' in locals():
+                f.write(fig_clientes.to_html(full_html=False))
+
             if not df_erros.empty:
                 f.write(fig_erros.to_html(full_html=False))
 
@@ -294,4 +337,4 @@ if arquivo:
         os.remove(html_path)
 
 else:
-    st.info("👆 Faça upload de um arquivo Excel para iniciar o dashboard.")
+    st.info("👆 Faz upload de um ficheiro Excel para iniciar o dashboard.")
