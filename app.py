@@ -17,14 +17,14 @@ st.set_page_config(
 
 st.title("📊 Dashboard de Demandas do Suporte")
 
-arquivo = st.file_uploader(
-    "📂 Selecione o arquivo de chamados (Excel)",
-    type=["xlsx", "xls"]
-)
+# ===============================
+# LEITURA DIRETA DO ARQUIVO
+# ===============================
+# Defina aqui o nome exato do seu arquivo Excel que estará na mesma pasta
+nome_do_arquivo = "Ticket.xlsx" 
 
-if arquivo:
-
-    df_total = pd.read_excel(arquivo)
+if os.path.exists(nome_do_arquivo):
+    df_total = pd.read_excel(nome_do_arquivo)
     df_total.columns = df_total.columns.str.strip()
 
     # ===============================
@@ -317,7 +317,6 @@ if arquivo:
             for fig in figuras_categoria:
                 f.write(fig.to_html(full_html=False))
 
-            # Adiciona também o gráfico de clientes à exportação, caso tenha sido gerado
             if 'fig_clientes' in locals():
                 f.write(fig_clientes.to_html(full_html=False))
 
@@ -337,4 +336,5 @@ if arquivo:
         os.remove(html_path)
 
 else:
-    st.info("👆 Faz upload de um ficheiro Excel para iniciar o dashboard.")
+    # Mostra um erro amigável se o arquivo não for encontrado na pasta
+    st.error(f"🚨 Arquivo '{nome_do_arquivo}' não encontrado! Certifique-se de que o arquivo Excel está na mesma pasta que este script.")
